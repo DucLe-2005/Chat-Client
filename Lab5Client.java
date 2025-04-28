@@ -1,10 +1,10 @@
 import java.awt.*;
 import java.awt.event.*;
-import javax.swing.*;
 import java.io.*;
 import java.net.*;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import javax.swing.*;
 
 public class Lab5Client {
     private JFrame frame = new JFrame("Chat Client");
@@ -15,6 +15,10 @@ public class Lab5Client {
     private JTextField usernameField = new JTextField(15);
     private JButton sendButton = new JButton("Send");
     private JButton connectButton = new JButton("Connect");
+    private JLabel statusLabel = new JLabel("Disconnected");
+    private DefaultListModel<String> userListModel = new DefaultListModel<>();
+    private JList<String> userList = new JList<>(userListModel);
+    private JPanel sidePanel;
 
     private Socket socket;
     private BufferedReader in;
@@ -25,41 +29,91 @@ public class Lab5Client {
     private IncomingReader incomingReader;
 
     public Lab5Client() {
-        messageArea.setEditable(false);
-        
-        // Main frame uses BorderLayout
+        // Set up the main frame
         frame.setLayout(new BorderLayout());
+        frame.setBackground(new Color(240, 240, 240));
         
-        // Top panel for connection settings (GridLayout)
+        // Configure message area
+        messageArea.setEditable(false);
+        messageArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        messageArea.setLineWrap(true);
+        messageArea.setWrapStyleWord(true);
+        messageArea.setBackground(new Color(255, 255, 255));
+        messageArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        // Configure input field
+        messageInput.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        messageInput.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200)),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        ));
+        
+        // Configure buttons
+        styleButton(sendButton);
+        styleButton(connectButton);
+        
+        // Configure text fields
+        styleTextField(usernameField);
+        styleTextField(serverField);
+        styleTextField(portField);
+        
+        // Status label styling
+        statusLabel.setForeground(Color.RED);
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        
+        // Top panel for connection settings
         JPanel topPanel = new JPanel();
         topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.X_AXIS));
-        topPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        topPanel.add(new JLabel("Username:"));
-        topPanel.add(Box.createHorizontalStrut(5));
-        topPanel.add(usernameField);
+        topPanel.setBackground(new Color(240, 240, 240));
+        topPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        // Add components to top panel
+        topPanel.add(createLabeledField("Username:", usernameField));
         topPanel.add(Box.createHorizontalStrut(10));
-        topPanel.add(new JLabel("Server:"));
-        topPanel.add(Box.createHorizontalStrut(5));
-        topPanel.add(serverField);
+        topPanel.add(createLabeledField("Server:", serverField));
         topPanel.add(Box.createHorizontalStrut(10));
-        topPanel.add(new JLabel("Port:"));
-        topPanel.add(Box.createHorizontalStrut(5));
-        topPanel.add(portField);
+        topPanel.add(createLabeledField("Port:", portField));
         topPanel.add(Box.createHorizontalStrut(10));
         topPanel.add(connectButton);
+        topPanel.add(Box.createHorizontalStrut(10));
+        topPanel.add(statusLabel);
         
-        // Message area in center
-        frame.add(new JScrollPane(messageArea), BorderLayout.CENTER);
+        // Message area in center with scroll pane
+        JScrollPane scrollPane = new JScrollPane(messageArea);
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.setBackground(new Color(240, 240, 240));
         
-        // Bottom panel for message input (GridLayout)
-        JPanel bottomPanel = new JPanel(new GridLayout(1, 2, 5, 5));
-        bottomPanel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-        bottomPanel.add(messageInput);
-        bottomPanel.add(sendButton);
+        // Bottom panel for message input
+        JPanel bottomPanel = new JPanel(new BorderLayout(5, 5));
+        bottomPanel.setBackground(new Color(240, 240, 240));
+        bottomPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JPanel inputPanel = new JPanel(new BorderLayout(5, 5));
+        inputPanel.add(messageInput, BorderLayout.CENTER);
+        inputPanel.add(sendButton, BorderLayout.EAST);
+        bottomPanel.add(inputPanel, BorderLayout.CENTER);
+        
+        // Configure user list
+        userList.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        userList.setBackground(new Color(250, 250, 250));
+        userList.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createTitledBorder("Online Users"),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        ));
+        userList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        // Create side panel for user list
+        sidePanel = new JPanel(new BorderLayout());
+        sidePanel.setPreferredSize(new Dimension(150, 0));
+        sidePanel.setBackground(new Color(240, 240, 240));
+        sidePanel.add(new JScrollPane(userList), BorderLayout.CENTER);
+        sidePanel.setVisible(false); // Initially hidden
         
         // Add panels to frame
         frame.add(topPanel, BorderLayout.NORTH);
+        frame.add(scrollPane, BorderLayout.CENTER);
         frame.add(bottomPanel, BorderLayout.SOUTH);
+        frame.add(sidePanel, BorderLayout.EAST);
 
         sendButton.setEnabled(false);
         messageInput.setEnabled(false);
@@ -79,6 +133,43 @@ public class Lab5Client {
         frame.pack();
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
+    }
+
+    private void styleButton(JButton button) {
+        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setBackground(new Color(0, 120, 215));
+        button.setForeground(Color.WHITE);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(100, 30));
+    }
+
+    private void styleTextField(JTextField field) {
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        field.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200)),
+            BorderFactory.createEmptyBorder(5, 5, 5, 5)
+        ));
+    }
+
+    private JPanel createLabeledField(String labelText, JTextField field) {
+        JPanel panel = new JPanel(new BorderLayout(5, 0));
+        JLabel label = new JLabel(labelText);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        panel.add(label, BorderLayout.WEST);
+        panel.add(field, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private void updateConnectionStatus(boolean connected) {
+        if (connected) {
+            statusLabel.setText("Connected");
+            statusLabel.setForeground(new Color(0, 150, 0));
+        } else {
+            statusLabel.setText("Disconnected");
+            statusLabel.setForeground(Color.RED);
+        }
     }
 
     private void disconnectFromServer() {
@@ -109,12 +200,16 @@ public class Lab5Client {
         connectButton.setEnabled(true);
         usernameField.setEnabled(true);
         connectButton.setText("Connect");
+        sidePanel.setVisible(false); // Hide user list when disconnected
+        frame.pack(); // Update frame size
         
         // Clear the streams
         in = null;
         out = null;
         socket = null;
         incomingReader = null;
+        userListModel.clear(); // Clear user list
+        updateConnectionStatus(false);
     }
 
     private void handleConnect(ActionEvent e) {
@@ -130,6 +225,10 @@ public class Lab5Client {
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 out = new PrintWriter(socket.getOutputStream(), false);
 
+                // Send username first
+                out.println(username);
+                out.flush();
+
                 sendButton.setEnabled(true);
                 connectButton.setText("Disconnect");
                 messageInput.setEnabled(true);
@@ -138,19 +237,22 @@ public class Lab5Client {
                 portField.setEnabled(false);
                 isConnected = true;
 
-                // broadcast username to server
                 out.println("[System] " + username + " has joined the chat");
                 out.flush();
+                sidePanel.setVisible(true); // Show user list when connected
+                frame.pack(); // Update frame size
 
                 incomingReader = new IncomingReader();
                 Thread readerThread = new Thread(incomingReader);
                 readerThread.start();
+                updateConnectionStatus(true);
             } catch (IOException ex) {
                 JOptionPane.showMessageDialog(frame, "Failed to connect to server.");
                 ex.printStackTrace();
             }
         } else if (e.getActionCommand().equals("Disconnect")) {
             disconnectFromServer();
+            updateConnectionStatus(false);
         }
     }
 
@@ -179,8 +281,25 @@ public class Lab5Client {
         public void run() {
             String message;
             try {
-                while (isConnected && (message = in.readLine()) != null) {
-                    messageArea.append(message + "\n");
+                while (isConnected) {
+                    message = in.readLine();
+                    if (message == null) break;
+                    
+                    if (message.startsWith("[USERLIST]")) {
+                        // Update user list
+                        final String userListMessage = message;
+                        SwingUtilities.invokeLater(() -> {
+                            userListModel.clear();
+                            String[] users = userListMessage.substring(10).split(",");
+                            for (String user : users) {
+                                if (!user.isEmpty()) {
+                                    userListModel.addElement(user);
+                                }
+                            }
+                        });
+                    } else {
+                        messageArea.append(message + "\n");
+                    }
                 } 
             } catch (IOException e) {
                 e.printStackTrace();

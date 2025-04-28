@@ -5,6 +5,7 @@ import java.util.*;
 public class Lab4Server {
     private static final int PORT = 5555;
     private static List<PrintWriter> clientWriters = new ArrayList<>();
+    private static List<String> onlineUsers = new ArrayList<>();
 
     public static void main(String[] args) {
         System.out.println("Server is running...");
@@ -24,6 +25,7 @@ public class Lab4Server {
         private Socket socket;
         private PrintWriter out;
         private BufferedReader in;
+        private String username;
 
         public ClientHandler(Socket socket) {
             this.socket = socket;
@@ -35,8 +37,16 @@ public class Lab4Server {
                 out = new PrintWriter(socket.getOutputStream(), false);
                 in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-                synchronized (clientWriters) {
-                    clientWriters.add(out);
+                // First message should be the username
+                username = in.readLine();
+                if (username != null && !username.isEmpty()) {
+                    synchronized (onlineUsers) {
+                        onlineUsers.add(username);
+                    }
+                    synchronized (clientWriters) {
+                        clientWriters.add(out);
+                    }
+                    broadcastUserList();
                 }
 
                 String message;
@@ -55,6 +65,10 @@ public class Lab4Server {
                 synchronized (clientWriters) {
                     clientWriters.remove(out);
                 }
+                synchronized (onlineUsers) {
+                    onlineUsers.remove(username);
+                }
+                broadcastUserList();
             }
         }
         
@@ -62,6 +76,22 @@ public class Lab4Server {
             synchronized (clientWriters) {
                 for (PrintWriter writer : clientWriters) {
                     writer.println(message);
+                    writer.flush();
+                }
+            }
+        }
+
+        private void broadcastUserList() {
+            StringBuilder userListMessage = new StringBuilder("[USERLIST]");
+            synchronized (onlineUsers) {
+                for (String user : onlineUsers) {
+                    userListMessage.append(user).append(",");
+                }
+            }
+            String finalMessage = userListMessage.toString();
+            synchronized (clientWriters) {
+                for (PrintWriter writer : clientWriters) {
+                    writer.println(finalMessage);
                     writer.flush();
                 }
             }

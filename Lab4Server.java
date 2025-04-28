@@ -51,8 +51,19 @@ public class Lab4Server {
 
                 String message;
                 while ((message = in.readLine()) != null) {
-                    System.out.println("Received: " + message);
-                    broadcast(message);
+                    if (message.startsWith("[TYPING]")) {
+                        // Broadcast typing notification to all other clients
+                        broadcastToOthers(username + " is typing...", out);
+                    } else if (message.startsWith("[STOP_TYPING]")) {
+                        // Broadcast stop typing notification to all other clients
+                        broadcastToOthers("", out);
+                    } else if (message.startsWith("[USERLIST]")) {
+                        // Ignore user list messages from clients
+                        continue;
+                    } else {
+                        System.out.println("Received: " + message);
+                        broadcast(message);
+                    }
                 }
             } catch (IOException e) {
                 System.out.println("Connection lost.");
@@ -77,6 +88,17 @@ public class Lab4Server {
                 for (PrintWriter writer : clientWriters) {
                     writer.println(message);
                     writer.flush();
+                }
+            }
+        }
+
+        private void broadcastToOthers(String message, PrintWriter exclude) {
+            synchronized (clientWriters) {
+                for (PrintWriter writer : clientWriters) {
+                    if (writer != exclude) {
+                        writer.println(message);
+                        writer.flush();
+                    }
                 }
             }
         }

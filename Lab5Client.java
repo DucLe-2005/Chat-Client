@@ -19,6 +19,10 @@ public class Lab5Client {
     private DefaultListModel<String> userListModel = new DefaultListModel<>();
     private JList<String> userList = new JList<>(userListModel);
     private JPanel sidePanel;
+    private JLabel typingLabel = new JLabel(" ");
+    private Timer typingTimer;
+    private static final int TYPING_TIMEOUT = 3000; // 3 seconds
+    private boolean isTyping = false;
 
     private Socket socket;
     private BufferedReader in;
@@ -92,6 +96,38 @@ public class Lab5Client {
         inputPanel.add(messageInput, BorderLayout.CENTER);
         inputPanel.add(sendButton, BorderLayout.EAST);
         bottomPanel.add(inputPanel, BorderLayout.CENTER);
+        
+        // Configure typing label
+        typingLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+        typingLabel.setForeground(new Color(100, 100, 100));
+        typingLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        typingLabel.setBorder(BorderFactory.createEmptyBorder(0, 5, 5, 5));
+
+        // Add typing label to bottom panel
+        bottomPanel.add(typingLabel, BorderLayout.SOUTH);
+
+        // Setup typing timer
+        typingTimer = new Timer(TYPING_TIMEOUT, e -> {
+            if (isTyping && isConnected && out != null) {
+                out.println("[STOP_TYPING]");
+                out.flush();
+                isTyping = false;
+            }
+        });
+        typingTimer.setRepeats(false);
+
+        // Add typing listener to message input
+        messageInput.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (!isTyping && isConnected && out != null) {
+                    out.println("[TYPING]");
+                    out.flush();
+                    isTyping = true;
+                }
+                typingTimer.restart();
+            }
+        });
         
         // Configure user list
         userList.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -202,6 +238,11 @@ public class Lab5Client {
         connectButton.setText("Connect");
         sidePanel.setVisible(false); // Hide user list when disconnected
         frame.pack(); // Update frame size
+        sidePanel.setVisible(false);
+        typingLabel.setText(" ");
+        typingTimer.stop();
+        isTyping = false;
+        frame.pack();
         
         // Clear the streams
         in = null;
@@ -263,6 +304,14 @@ public class Lab5Client {
             out.println(message);
             out.flush();
             messageInput.setText("");
+            
+            // Send stop typing notification
+            if (isTyping) {
+                out.println("[STOP_TYPING]");
+                out.flush();
+                isTyping = false;
+            }
+            typingTimer.stop();
         }
     }
 
@@ -285,20 +334,30 @@ public class Lab5Client {
                     message = in.readLine();
                     if (message == null) break;
                     
-                    if (message.startsWith("[USERLIST]")) {
+                    final String finalMessage = message;
+                    if (finalMessage.startsWith("[USERLIST]")) {
                         // Update user list
-                        final String userListMessage = message;
                         SwingUtilities.invokeLater(() -> {
                             userListModel.clear();
-                            String[] users = userListMessage.substring(10).split(",");
+                            String[] users = finalMessage.substring(10).split(",");
                             for (String user : users) {
                                 if (!user.isEmpty()) {
                                     userListModel.addElement(user);
                                 }
                             }
                         });
+                    } else if (finalMessage.endsWith("is typing...")) {
+                        // Update typing indicator
+                        SwingUtilities.invokeLater(() -> {
+                            typingLabel.setText(finalMessage);
+                        });
+                    } else if (finalMessage.isEmpty()) {
+                        // Clear typing indicator
+                        SwingUtilities.invokeLater(() -> {
+                            typingLabel.setText(" ");
+                        });
                     } else {
-                        messageArea.append(message + "\n");
+                        messageArea.append(finalMessage + "\n");
                     }
                 } 
             } catch (IOException e) {
